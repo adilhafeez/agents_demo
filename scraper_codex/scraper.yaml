@@ -1,0 +1,87 @@
+# Web summarizer: Codex researches a website with a real headless browser and
+# writes a Markdown summary. Nothing is cloned. The codex image already has a
+# headless Chromium, and the runtime adds a platform skill telling the agent so;
+# the skill below adds only the task rules and the output format.
+#
+#   doctl harness-runtime validate scraper.yaml
+#   ./run.sh
+#
+# Expects MODEL_ACCESS_KEY (a DigitalOcean model access key) in your environment; doctl expands it client-side. It
+# expands brace-style references everywhere in this file, including comments
+# and the skill below, so the skill writes shell variables as bare $NAME.
+name: web-summarizer-codex
+agent: codex
+labels:
+  demo: mars-scraper
+env:
+  # DigitalOcean Inference. MARS sets HARNESS_INFERENCE_BASE_URL itself.
+  HARNESS_INFERENCE_MODEL: kimi-k3
+secrets:
+  HARNESS_INFERENCE_API_KEY: ${MODEL_ACCESS_KEY}
+# Permission rules cannot single out a form submit, so this demo runs unattended
+# and the skill forbids side-effecting submits instead. Without default: allow,
+# Codex runs under its untrusted approval policy and asks before most commands.
+permissions:
+  default: allow
+size: mars-2vcpu-4gb
+idle_timeout: 30m
+skills:
+  - name: web-summarizer
+    description: >-
+      Use when asked to visit, read, research or summarize a website or web
+      page. Defines how to browse with the installed headless browser, the
+      limits on what you may do on a site, and the summary file you must write.
+    instructions: |
+      # Web summarizer
+
+      You research websites with a real headless browser and write a summary.
+      The `headless-browser` skill explains the Chromium that is already installed;
+      read it first and do not download another browser.
+
+      ## Browsing
+
+      Drive the browser with Playwright from Node, so pages that render with
+      JavaScript work. Set it up once per session:
+
+      ```bash
+      mkdir -p /workspace/.browse /workspace/artifacts
+      cd /workspace/.browse && npm init -y >/dev/null && npm i --silent playwright-core@$HARNESS_PLAYWRIGHT_VERSION
+      ```
+
+      Launch with `chromium.launch({ args: ["--no-sandbox"] })` and reuse one
+      script per step rather than one giant script, so a failure costs one step.
+      Read each page's visible text (`page.innerText("body")`, trimmed to what
+      you need), not its HTML; HTML wastes your context.
+
+      Rules:
+      - At most 15 page loads or interactions per request. Stop as soon as you
+        have enough.
+      - Prefer the site's own navigation over guessing URLs.
+      - Save a screenshot of each page you rely on to
+        `/workspace/artifacts/<short-name>.png`.
+      - You may type into a search box and submit it. Never submit any other
+        form: no logins, sign-ups, purchases, comments or messages.
+      - Never enter credentials or personal data.
+      - If a page blocks you (login wall, captcha, 403), say so and move on; do
+        not try to get around it.
+
+      ## Output
+
+      Write the answer to `/workspace/artifacts/summary.md`, then reply with
+      exactly the same Markdown and nothing else. Use only what appeared on the
+      pages. If something asked for could not be found or loaded, say so.
+
+      ```markdown
+      # <short title>
+
+      **TL;DR:** two sentences at most.
+
+      ## Key points
+      - 3 to 7 bullets, most important first.
+
+      ## Details
+      Short paragraphs or a table, only if the request needs them.
+
+      ## Sources
+      - every URL you drew on.
+      ```
