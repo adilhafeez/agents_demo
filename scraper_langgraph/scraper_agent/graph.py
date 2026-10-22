@@ -301,13 +301,30 @@ def _steps_this_turn(messages: list[BaseMessage]) -> int:
     )
 
 
-def _compact(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """Elide page snapshots from earlier turns; they are the bulk of the context."""
+_ELEMENTS_RE = re.compile(r"^Interactive elements .*?\n\n", re.DOTALL | re.MULTILINE)
+
+
+def _without_elements(message: ToolMessage) -> ToolMessage:
+    text = _ELEMENTS_RE.sub("", _text(message), count=1)
+    return ToolMessage(content=text, tool_call_id=message.tool_call_id)
+
+
+def _compact(messages: list[BaseMessage], keep_elements: bool = True) -> list[BaseMessage]:
+    """Shrink page snapshots, which are the bulk of the context.
+
+    Snapshots from earlier turns are elided. In this turn only the newest
+    snapshot keeps its element list, because element numbers from any older one
+    are stale; with keep_elements=False none keeps it.
+    """
     start = _turn_start(messages)
+    last_tool = max((i for i, m in enumerate(messages) if isinstance(m, ToolMessage)), default=-1)
     out: list[BaseMessage] = []
     for i, m in enumerate(messages):
-        if i < start and isinstance(m, ToolMessage):
-            m = ToolMessage(content="[page snapshot from an earlier turn, elided]", tool_call_id=m.tool_call_id)
+        if isinstance(m, ToolMessage):
+            if i < start:
+                m = ToolMessage(content="[page snapshot from an earlier turn, elided]", tool_call_id=m.tool_call_id)
+            elif not keep_elements or i != last_tool:
+                m = _without_elements(m)
         out.append(m)
     return out
 
@@ -373,7 +390,7 @@ async def summarize(state: MessagesState, config: RunnableConfig) -> dict:
     await _progress("writing the summary")
     started = time.monotonic()
     response = await llm.ainvoke(
-        [SystemMessage(SUMMARY_PROMPT), *_compact(state["messages"]), finish], config
+        [SystemMessage(SUMMARY_PROMPT), *_compact(state["messages"], keep_elements=False), finish], config
     )
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     await asyncio.to_thread(
