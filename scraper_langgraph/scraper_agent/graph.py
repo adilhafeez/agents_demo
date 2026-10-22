@@ -16,8 +16,10 @@ must not use `from __future__ import annotations`.
 """
 
 import asyncio
+import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -172,6 +174,28 @@ def _write_bytes(path: str, data: bytes) -> None:
         f.write(data)
 
 
+PROGRESS_LOG = os.path.join(ARTIFACT_DIR, "progress.log")
+
+
+def _append_line(path: str, line: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a") as f:
+        f.write(line.replace("\n", " ") + "\n")
+
+
+async def _progress(line: str) -> None:
+    """One line per step to artifacts/progress.log, which run.sh polls to show the run live."""
+    await asyncio.to_thread(_append_line, PROGRESS_LOG, line)
+
+
+def _result_line(message: ToolMessage) -> str:
+    lines = _text(message).splitlines()
+    if not lines:
+        return "(empty result)"
+    title = next((line for line in lines if line.startswith("Title:")), "")
+    return f"{lines[0][:100]}{', ' + title[:100] if title and title != lines[0] else ''}"
+
+
 # --- model -----------------------------------------------------------------
 
 _model = None
@@ -289,14 +313,31 @@ def _compact(messages: list[BaseMessage]) -> list[BaseMessage]:
 
 
 async def browse(state: MessagesState, config: RunnableConfig) -> dict:
-    steps = _steps_this_turn(state["messages"])
+    messages = state["messages"]
+    steps = _steps_this_turn(messages)
+    if isinstance(messages[-1], HumanMessage):
+        await _progress(f"turn: {_text(messages[-1])[:120]}")
+    results = []
+    for m in reversed(messages):
+        if not isinstance(m, ToolMessage):
+            break
+        results.append(m)
+    for m in reversed(results):
+        await _progress(f"  <- {_result_line(m)}")
     if steps >= MAX_STEPS:
+        await _progress(f"step limit ({MAX_STEPS}) reached; summarizing")
         return {}
     llm = (await model()).bind_tools(TOOLS).with_config(tags=["nostream"])
     prompt = SystemMessage(BROWSE_PROMPT.format(remaining=MAX_STEPS - steps, max_steps=MAX_STEPS))
-    response = await llm.ainvoke([prompt, *_compact(state["messages"])], config)
+    started = time.monotonic()
+    response = await llm.ainvoke([prompt, *_compact(messages)], config)
+    took = time.monotonic() - started
     if not response.tool_calls:
+        await _progress(f"model {took:.1f}s: done browsing after {steps} steps")
         return {}
+    for call in response.tool_calls:
+        args = json.dumps(call.get("args") or {}, ensure_ascii=False)[:120]
+        await _progress(f"step {steps + 1}/{MAX_STEPS} (model {took:.1f}s): {call['name']} {args}")
     return {"messages": [_without_text(response)]}
 
 
@@ -329,6 +370,8 @@ async def summarize(state: MessagesState, config: RunnableConfig) -> dict:
     # hundreds of thousands of tokens back, and a conversation that ends on a page
     # snapshot gets continued as more browsing narration instead of an answer.
     finish = HumanMessage(SUMMARY_NOW)
+    await _progress("writing the summary")
+    started = time.monotonic()
     response = await llm.ainvoke(
         [SystemMessage(SUMMARY_PROMPT), *_compact(state["messages"]), finish], config
     )
@@ -338,6 +381,7 @@ async def summarize(state: MessagesState, config: RunnableConfig) -> dict:
         os.path.join(ARTIFACT_DIR, "summary.md"),
         f"<!-- generated {stamp} -->\n{_text(response)}\n".encode(),
     )
+    await _progress(f"summary written (model {time.monotonic() - started:.1f}s)")
     return {"messages": [response]}
 
 

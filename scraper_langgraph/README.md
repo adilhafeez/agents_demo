@@ -81,6 +81,8 @@ Rules for your own browser template:
 - **Failures.** A failed browser action (a timeout, an aborted navigation)
   comes back to the model as a tool result, so it tries another page instead
   of ending the run.
+- **Progress.** Every browser step, its result and the summary step are
+  appended to `artifacts/progress.log`, which `run.sh` polls.
 - **Follow-ups.** One session is one LangGraph thread, so a follow-up prompt
   continues on the page the last turn left open.
 - **Model.** `kimi-k3` on DigitalOcean Inference, set by
@@ -101,6 +103,14 @@ completed, 1 failed, 124 timed out.
 | `TIMEOUT` | `900` | Seconds to wait for the run to finish |
 | `ON_HITL` | `approve` | How to answer approval requests: `approve` or `reject` |
 | `DOCTL_FLAGS` | none | Extra global doctl flags, such as `-u <api-url>` |
+| `DETAILS` | `1` | Poll the sandbox during the run and print startup and browsing progress; `0` turns it off |
+| `POLL_SECONDS` | `2` | Seconds between polls |
+
+While the prompt runs, lines starting with `|` come from the sandbox: the
+startup steps (clone, virtualenv, `pip install`, server start, or the error
+that stopped startup), then one line per browser step from the graph's
+`artifacts/progress.log`, with the model's time for that step and the title of
+each page it got back.
 
 ## When it breaks
 
