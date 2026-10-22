@@ -29,13 +29,14 @@ export MODEL_ACCESS_KEY=...   # DigitalOcean model access key
 ## How it works
 
 - **Browser.** The codex image includes a headless Chromium, and the runtime
-  tells the agent about it. Codex writes its own Playwright scripts against it.
+  tells the agent about it. Codex writes its own Playwright script against it.
+  The skill asks for one reusable script and at most three browse commands,
+  because every command is a model turn and page text piles up in the context.
 - **Commands.** The agent's commands run inside its own microVM, which is the
   isolation boundary, so those scripts can reach the network.
 - **Approvals.** `permissions.default: allow`. Without it Codex runs under its
   `untrusted` approval policy and stops for approval before most commands. Form
-  submits are limited by the skill's written rules: search boxes are allowed,
-  every other submit is forbidden.
+  submits are forbidden by the skill's written rules instead.
 - **Model.** `kimi-k3` on DigitalOcean Inference, set by
   `HARNESS_INFERENCE_MODEL` in the manifest. The endpoint is set by the
   platform.
