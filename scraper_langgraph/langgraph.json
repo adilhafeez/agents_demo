@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "agent": "./scraper_agent/graph.py:graph"
+  }
+}
