@@ -117,21 +117,43 @@ _SNAPSHOT_JS = """
     'a[href]', 'button', 'input:not([type=hidden])', 'textarea', 'select', 'summary',
     '[role=button]', '[role=link]', '[role=tab]', '[role=menuitem]', '[role=checkbox]',
   ].join(',');
-  const elements = [];
-  let n = 0;
+  // Site navigation can hold more links than the cap, so content elements are
+  // listed first and navigation only fills what is left.
+  const chrome = 'nav, header, footer, aside, [role=navigation], [role=banner], [role=contentinfo]';
+  // A card link often wraps only an image or says "Read more"; its heading is
+  // the useful label.
+  const nearestHeading = (el) => {
+    for (let up = el, i = 0; up && up !== document.body && i < 4; up = up.parentElement, i++) {
+      const h = up.querySelector('h1, h2, h3, h4');
+      if (h && h.innerText.trim()) return h.innerText;
+    }
+    return '';
+  };
+  const content = [];
+  const navigation = [];
   for (const el of document.querySelectorAll(selector)) {
     const box = el.getBoundingClientRect();
     const style = getComputedStyle(el);
     if (box.width === 0 || box.height === 0 || style.visibility === 'hidden' || style.display === 'none') continue;
+    (el.closest(chrome) ? navigation : content).push(el);
+  }
+  const elements = [];
+  let n = 0;
+  for (const el of content.concat(navigation)) {
+    if (n >= maxElements) break;
     n += 1;
     el.setAttribute('data-agent-ref', String(n));
     const tag = el.tagName.toLowerCase();
     const type = el.getAttribute('type');
     const value = el.type === 'password' ? '' : (el.value || '');
-    const label = (el.innerText || value || el.getAttribute('aria-label') || el.getAttribute('placeholder')
-      || el.getAttribute('title') || el.getAttribute('name') || '').trim().replace(/\\s+/g, ' ').slice(0, 80);
+    let label = (el.innerText || value || el.getAttribute('aria-label') || el.getAttribute('placeholder')
+      || el.getAttribute('title') || el.getAttribute('name') || '').trim();
+    if (tag === 'a' && label.length < 20) {
+      const heading = nearestHeading(el).trim();
+      if (heading && heading !== label) label = label ? `${label}: ${heading}` : heading;
+    }
+    label = label.replace(/\\s+/g, ' ').slice(0, 80);
     elements.push({ref: n, tag: type ? `${tag}[${type}]` : tag, label, href: tag === 'a' ? el.getAttribute('href') : null});
-    if (n >= maxElements) break;
   }
   const text = (document.body ? document.body.innerText : '').replace(/\\n{3,}/g, '\\n\\n').trim();
   // Where the viewport sits within that text: the first visible text node's
