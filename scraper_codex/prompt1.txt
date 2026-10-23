@@ -1,1 +1,1 @@
-Go to https://www.digitalocean.com/blog, find the three most recent posts, open each one, and summarize them: what each post announces or argues, who it is for, and anything a DigitalOcean customer would need to act on.
+Using the web-summarizer skill, go to https://www.digitalocean.com/blog, open the three most recent posts, and summarize each in two sentences: what it announces and whether a DigitalOcean customer needs to act on it.

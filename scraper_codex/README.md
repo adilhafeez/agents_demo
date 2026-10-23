@@ -32,6 +32,10 @@ export MODEL_ACCESS_KEY=...   # DigitalOcean model access key
   tells the agent about it. Codex writes its own Playwright script against it.
   The skill asks for one reusable script and at most three browse commands,
   because every command is a model turn and page text piles up in the context.
+  The script labels each link with its heading, so one run of the start page
+  gives both the post titles and their URLs. It drops navigation, headers and
+  footers before printing, so a page without an `article` element still reads
+  as its content.
 - **Commands.** The agent's commands run inside its own microVM, which is the
   isolation boundary, so those scripts can reach the network.
 - **Approvals.** `permissions.default: allow`. Without it Codex runs under its
@@ -73,7 +77,8 @@ doctl harness-runtime remove web-summarizer-codex
 |---|---|---|
 | 401 `Unable to authenticate you` | The model access key is wrong or revoked | Export a current `MODEL_ACCESS_KEY` |
 | 429 `Rate limit exceeded` on the first call | Your team has no quota for the model | Pick another model in `HARNESS_INFERENCE_MODEL` |
-| The agent downloads a browser | It ignored the skill | Harmless but slow. Name the skill in the prompt: "use the web-summarizer skill" |
+| The agent downloads a browser, or scrapes with `curl` and Python | It ignored the skill; whether Codex opens a skill is the model's choice | Name the skill in the prompt, as `prompt1.txt` does: "Using the web-summarizer skill, ..." |
+| A run takes several minutes and many commands | The prompt asks for more detail than the skill's one script returns, so Codex writes more scripts | Ask for less: a sentence or two per page reads well within the 15000-character cap |
 | Answer with no browsing before it | The model answered from memory | Ask again and name the URL |
 | No `summary-<session>.md` saved | The agent replied without writing `artifacts/summary.md` | The answer is still on stdout |
 | Summary says a page was blocked | Login wall, captcha or a bot check | Pick another site. Many sites block headless browsers |

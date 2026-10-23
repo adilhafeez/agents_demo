@@ -14,11 +14,19 @@ skills:
       `headless-browser` skill describes; do not download another browser.
 
       Write one reusable script that takes URLs as arguments and prints, for
-      each, the title and the visible text of `main` (or `body`), capped at about
-      5000 characters. Launch with `chromium.launch({ args: ["--no-sandbox"] })`.
+      each:
+      - the title;
+      - the visible text of `article` (else `main`, else `body`), capped at
+        15000 characters, after removing `nav`, `header`, `footer`, `aside`,
+        `script` and `style` elements, since many sites have no `article`;
+      - each remaining link as `URL | label`, where the label is the link's own
+        text or, when that is empty, the text of the nearest heading inside or
+        around it.
 
-      - Read the start page (with its links) first, then fetch every page you
-        need in one run of the script. At most 3 browse commands.
+      Launch with `chromium.launch({ args: ["--no-sandbox"] })`.
+
+      - Read the start page first, then fetch every page you need in one run of
+        the script. At most 3 browse commands.
       - Use that output for the summary; do not re-open pages or grep saved text.
       - Never submit a form or enter credentials. If a page blocks you, say so and move on.
 
