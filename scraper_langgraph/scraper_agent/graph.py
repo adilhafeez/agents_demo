@@ -16,10 +16,12 @@ must not use `from __future__ import annotations`.
 """
 
 import asyncio
+import functools
 import json
 import os
 import re
 import time
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -50,10 +52,30 @@ def _thread_id(config: RunnableConfig) -> str:
     return str((config.get("configurable") or {}).get("thread_id") or "default")
 
 
+_tab_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+def _one_at_a_time(fn):
+    """Run a thread's browser tools in order.
+
+    The model may call several tools in one step and ToolNode runs them
+    concurrently, but they share one tab: two parallel open_url calls would
+    both return whichever page loaded last.
+    """
+
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        async with _tab_locks[_thread_id(kwargs.get("config") or {})]:
+            return await fn(*args, **kwargs)
+
+    return wrapper
+
+
 # --- tools -----------------------------------------------------------------
 
 
 @tool
+@_one_at_a_time
 async def open_url(url: str, config: RunnableConfig) -> str:
     """Navigate to a URL and return the page: its interactive elements and visible text."""
     if not re.match(r"^https?://", url):
@@ -75,6 +97,7 @@ async def open_url(url: str, config: RunnableConfig) -> str:
 
 
 @tool
+@_one_at_a_time
 async def read_page(config: RunnableConfig) -> str:
     """Re-read the current page. Use after content changed without a navigation."""
     page = await browsers.page(_thread_id(config))
@@ -82,6 +105,7 @@ async def read_page(config: RunnableConfig) -> str:
 
 
 @tool
+@_one_at_a_time
 async def click(ref: int, config: RunnableConfig) -> str:
     """Click the element numbered `ref` in the latest page snapshot, then return the resulting page."""
     page = await browsers.page(_thread_id(config))
@@ -95,6 +119,7 @@ async def click(ref: int, config: RunnableConfig) -> str:
 
 
 @tool
+@_one_at_a_time
 async def type_text(ref: int, text: str, config: RunnableConfig, submit: bool = False) -> str:
     """Type into the input numbered `ref`. Set submit=true to press Enter afterwards (search boxes, forms)."""
     page = await browsers.page(_thread_id(config))
@@ -120,6 +145,7 @@ async def type_text(ref: int, text: str, config: RunnableConfig, submit: bool = 
 
 
 @tool
+@_one_at_a_time
 async def scroll(config: RunnableConfig, direction: Literal["down", "up"] = "down") -> str:
     """Scroll one screen down or up, for pages that load more content as you scroll."""
     page = await browsers.page(_thread_id(config))
@@ -146,6 +172,7 @@ async def scroll(config: RunnableConfig, direction: Literal["down", "up"] = "dow
 
 
 @tool
+@_one_at_a_time
 async def go_back(config: RunnableConfig) -> str:
     """Go back to the previous page."""
     page = await browsers.page(_thread_id(config))
@@ -155,6 +182,7 @@ async def go_back(config: RunnableConfig) -> str:
 
 
 @tool
+@_one_at_a_time
 async def screenshot(name: str, config: RunnableConfig) -> str:
     """Save a PNG of the current viewport to the sandbox workspace. Returns the file path."""
     page = await browsers.page(_thread_id(config))
@@ -301,13 +329,30 @@ def _steps_this_turn(messages: list[BaseMessage]) -> int:
     )
 
 
-def _compact(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """Elide page snapshots from earlier turns; they are the bulk of the context."""
+_ELEMENTS_RE = re.compile(r"^Interactive elements .*?\n\n", re.DOTALL | re.MULTILINE)
+
+
+def _without_elements(message: ToolMessage) -> ToolMessage:
+    text = _ELEMENTS_RE.sub("", _text(message), count=1)
+    return ToolMessage(content=text, tool_call_id=message.tool_call_id)
+
+
+def _compact(messages: list[BaseMessage], keep_elements: bool = True) -> list[BaseMessage]:
+    """Shrink page snapshots, which are the bulk of the context.
+
+    Snapshots from earlier turns are elided. In this turn only the newest
+    snapshot keeps its element list, because element numbers from any older one
+    are stale; with keep_elements=False none keeps it.
+    """
     start = _turn_start(messages)
+    last_tool = max((i for i, m in enumerate(messages) if isinstance(m, ToolMessage)), default=-1)
     out: list[BaseMessage] = []
     for i, m in enumerate(messages):
-        if i < start and isinstance(m, ToolMessage):
-            m = ToolMessage(content="[page snapshot from an earlier turn, elided]", tool_call_id=m.tool_call_id)
+        if isinstance(m, ToolMessage):
+            if i < start:
+                m = ToolMessage(content="[page snapshot from an earlier turn, elided]", tool_call_id=m.tool_call_id)
+            elif not keep_elements or i != last_tool:
+                m = _without_elements(m)
         out.append(m)
     return out
 
@@ -373,7 +418,7 @@ async def summarize(state: MessagesState, config: RunnableConfig) -> dict:
     await _progress("writing the summary")
     started = time.monotonic()
     response = await llm.ainvoke(
-        [SystemMessage(SUMMARY_PROMPT), *_compact(state["messages"]), finish], config
+        [SystemMessage(SUMMARY_PROMPT), *_compact(state["messages"], keep_elements=False), finish], config
     )
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     await asyncio.to_thread(

@@ -75,7 +75,12 @@ Rules for your own browser template:
   `artifacts/summary.md`.
 - **Pages as text.** Each snapshot lists the visible interactive elements by
   number and the page text from the current scroll position, so the model acts
-  on "element 12" instead of writing CSS selectors.
+  on "element 12" instead of writing CSS selectors. The list is capped at 80
+  (`PAGE_MAX_ELEMENTS`), so content comes before navigation, headers and
+  footers, and a short link such as "Read more" is labeled with its card's
+  heading. Only the newest snapshot
+  keeps its element list, since older numbers are stale, and `summarize` sees
+  page text alone; that keeps each model call small.
 - **Approvals.** With `APPROVE_SUBMITS: "true"`, any search or form submit
   pauses the run with an approval request. `run.sh` answers it with `ON_HITL`.
 - **Failures.** A failed browser action (a timeout, an aborted navigation)
