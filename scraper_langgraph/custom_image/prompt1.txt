@@ -1,0 +1,1 @@
+Go to https://xkcd.com, read the latest comic and its title text, and explain the joke. Use only xkcd.com, not transcripts or explanations on other sites: the comic's words are drawn in the image, so read them from the image itself.

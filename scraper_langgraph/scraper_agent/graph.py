@@ -32,6 +32,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
 
+from scraper_agent import ocr
 from scraper_agent.browser import (
     Browsers,
     BrowserUnavailable,
@@ -193,7 +194,20 @@ async def screenshot(name: str, config: RunnableConfig) -> str:
     return f"Saved {path}"
 
 
+@tool
+@_one_at_a_time
+async def read_images(config: RunnableConfig) -> str:
+    """Read the text drawn inside the current page's images: comics, charts, infographics, scans.
+
+    Page snapshots contain only HTML text, so use this when what you need is in a picture.
+    """
+    page = await browsers.page(_thread_id(config))
+    return await ocr.read_images(page)
+
+
 TOOLS = [open_url, read_page, click, type_text, scroll, go_back, screenshot]
+if ocr.AVAILABLE:
+    TOOLS.append(read_images)
 
 
 def _write_bytes(path: str, data: bytes) -> None:

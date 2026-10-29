@@ -1,0 +1,39 @@
+# Web summarizer on a custom image: the same graph as ../scraper.yaml, on the
+# langgraph-ocr team template built from Dockerfile here, which adds Tesseract
+# so the graph can read text inside images (see README.md).
+#
+#   doctl harness-runtime validate custom_image/scraper.yaml
+#   custom_image/run.sh
+#
+# Expects SCRAPER_REPO, SCRAPER_REPO_SHA and MODEL_ACCESS_KEY in your environment
+# (../run.sh fills in the first two); doctl expands them client-side, so nothing
+# secret is on disk here. It expands references inside comments too, so never
+# write one in a comment.
+name: web-summarizer-ocr
+agent: langgraph
+template: langgraph-ocr
+labels:
+  demo: web-summarizer-ocr
+langgraph:
+  framework:
+    repo: ${SCRAPER_REPO}               # https://github.com/<owner>/<repo>.git
+    repo_sha: ${SCRAPER_REPO_SHA}       # full 40-character commit SHA
+    subdir: scraper_langgraph           # the directory holding langgraph.json
+env:
+  # DigitalOcean Inference. The platform sets HARNESS_INFERENCE_BASE_URL itself;
+  # the graph pairs it with HARNESS_INFERENCE_API_KEY below.
+  HARNESS_INFERENCE_MODEL: kimi-k3
+  # Browser actions per turn before the agent must summarize what it has.
+  MAX_BROWSE_STEPS: "15"
+  # Pause for approval before submitting any search or form.
+  APPROVE_SUBMITS: "true"
+secrets:
+  HARNESS_INFERENCE_API_KEY: ${MODEL_ACCESS_KEY}   # a DigitalOcean model access key
+  # For a private fork of this repo, connect GitHub first
+  # (doctl harness-runtime auth github) and uncomment:
+  # GITHUB_TOKEN: oauth/github
+size: mars-2vcpu-4gb
+idle_timeout: 30m
+# Egress stays unrestricted on purpose: the agent visits whatever site you name,
+# and on a template without Chromium the graph also downloads the browser and
+# its system libraries.
