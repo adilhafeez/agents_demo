@@ -269,6 +269,9 @@ def _build_model():
         # Without this, ChatOpenAI on a custom base_url reports no token usage
         # and the platform bills the turn as zero tokens.
         stream_usage=True,
+        # The inference endpoint answers 529 "overloaded" in bursts; the client
+        # default of 2 retries gives up within about two seconds.
+        max_retries=6,
     )
 
 
