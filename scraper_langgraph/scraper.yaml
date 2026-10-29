@@ -11,10 +11,6 @@
 # write one in a comment.
 name: web-summarizer
 agent: langgraph
-# The team template with Chromium baked in (template/Dockerfile). Remove this
-# line to use the stock template instead: the graph then installs Chromium on
-# its first browser action, which takes a few minutes.
-template: langgraph-chromium
 labels:
   demo: web-summarizer
 langgraph:
@@ -38,5 +34,5 @@ secrets:
 size: mars-2vcpu-4gb
 idle_timeout: 30m
 # Egress stays unrestricted on purpose: the agent visits whatever site you name,
-# and without the Chromium template the first browser use also downloads the
-# browser and its system libraries.
+# and on a template without Chromium the graph also downloads the browser and
+# its system libraries.

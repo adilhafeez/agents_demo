@@ -40,8 +40,10 @@ cleanup() {
   mark "removing session $session"
   if dt remove "$session" >/dev/null 2>&1; then
     mark "removed"
-  else
+  elif dt show "$session" >/dev/null 2>&1; then
     mark "could not remove $session; it is still billing: doctl harness-runtime remove $session"
+  else
+    mark "no session to remove"
   fi
 }
 trap cleanup EXIT

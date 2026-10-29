@@ -17,6 +17,8 @@
 # Needs MODEL_ACCESS_KEY. SCRAPER_REPO defaults to this demo's public repo and
 # SCRAPER_REPO_SHA to that repo's current HEAD; set both to run your own fork.
 # DOCTL_FLAGS adds global doctl flags, e.g. DOCTL_FLAGS="-u <api-url>" for a non-default API endpoint.
+# MANIFEST (default scraper.yaml) and PROMPT_FILE (default prompt1.txt) are
+# relative to this directory; custom_image/run.sh sets both.
 # TIMEOUT (seconds, default 900) and ON_HITL (approve|reject, default approve) tune the run.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -29,8 +31,8 @@ if [ -z "${SCRAPER_REPO_SHA:-}" ]; then
 fi
 export SCRAPER_REPO_SHA
 
-manifest=scraper.yaml
-prompt="${1:-$(cat prompt1.txt)}"
+manifest="${MANIFEST:-scraper.yaml}"
+prompt="${1:-$(cat "${PROMPT_FILE:-prompt1.txt}")}"
 name="web-summarizer-langgraph-$(date +%Y%m%d-%H%M%S)"
 
 # bash 3.2 (macOS /bin/sh) has no sub-second clock, so perl keeps the time.
@@ -96,8 +98,10 @@ cleanup() {
   mark "removing session $session"
   if dt remove "$session" >/dev/null 2>&1; then
     mark "removed"
-  else
+  elif dt show "$session" >/dev/null 2>&1; then
     mark "could not remove $session; it is still billing: doctl harness-runtime remove $session"
+  else
+    mark "no session to remove"
   fi
 }
 trap cleanup EXIT
