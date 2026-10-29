@@ -2,4 +2,5 @@
 # each version looks for its own browser build, and a mismatch downloads a
 # second browser at session start.
 playwright==1.63.0
-langchain-openai==1.7.2
+# Baked into the langgraph template too; the same pin installs nothing at boot.
+langchain-openai==1.7.3
