@@ -1,6 +1,7 @@
-# playwright must equal the version baked into the langgraph template (1.63.0):
-# each version looks for its own browser build, and a mismatch downloads a
-# second browser at session start.
+# langchain-openai and the rest of the graph's imports come with the langgraph
+# and langgraph-base templates. playwright is baked into langgraph only, so a
+# team template on langgraph-base (custom_image/) still installs it from here.
+# It must equal the version baked into the langgraph template (1.63.0): each
+# version looks for its own browser build, and a mismatch downloads a second
+# browser at session start.
 playwright==1.63.0
-# Baked into the langgraph template too; the same pin installs nothing at boot.
-langchain-openai==1.7.3
