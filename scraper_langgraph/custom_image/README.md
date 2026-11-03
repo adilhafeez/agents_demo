@@ -50,9 +50,13 @@ a new tag and run `doctl harness-runtime template update langgraph-ocr
   `langgraph-base` runs the platform's LangGraph server inside your image's
   root filesystem, so the graph sees your system packages: here Chromium's
   libraries, the browser under `/ms-playwright`, and `tesseract`.
-- **The graph's Python packages still come from `../requirements.txt`.** The
-  template keeps your files, system packages and `ENV`, but not Python packages
-  installed in the image.
+- **Python packages come from the platform, not your image.** The template
+  keeps your files, system packages and `ENV`, but not Python packages
+  installed in the image: the graph runs on the platform's Python, which ships
+  the LangGraph server and `langchain-openai`. Anything else, here
+  `playwright`, comes from `../requirements.txt`. A template built from
+  `langgraph-base` before 2026-10-30 has no `langchain-openai`; rebuild it with
+  `template update`.
 - **The tool appears only where it works.** `scraper_agent/ocr.py` looks for
   `tesseract` on `PATH`. The graph offers its `read_images` tool only when it
   is there, so the same code runs unchanged on the stock template.

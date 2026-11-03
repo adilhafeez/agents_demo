@@ -20,7 +20,7 @@ export MODEL_ACCESS_KEY=...   # DigitalOcean model access key
 |---|---|
 | `scraper.yaml` | The agent manifest. |
 | `langgraph.json`, `scraper_agent/` | The LangGraph graph and its browser tools. |
-| `requirements.txt` | The graph's Python dependencies, installed at session start. |
+| `requirements.txt` | Python packages the template may lack, installed at session start. |
 | `prompt1.txt` | The default prompt. |
 | `run.sh` | Create a session, run one prompt, save the summary, remove the session. |
 | `custom_image/` | The same demo on a team template built from your own image. |
@@ -66,8 +66,8 @@ export MODEL_ACCESS_KEY=...   # DigitalOcean model access key
 - **Follow-ups.** One session is one LangGraph thread, so a follow-up prompt
   continues on the page the last turn left open.
 - **Model.** `kimi-k3` on DigitalOcean Inference, set by
-  `HARNESS_INFERENCE_MODEL`. Set `OPENAI_API_KEY` (and optionally `MODEL`)
-  instead to use OpenAI.
+  `HARNESS_INFERENCE_MODEL`, through `langchain-openai`, which the template
+  ships. Set `OPENAI_API_KEY` (and optionally `MODEL`) instead to use OpenAI.
 
 ## Running it
 
