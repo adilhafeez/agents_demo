@@ -65,7 +65,7 @@ export MODEL_ACCESS_KEY=...   # DigitalOcean model access key
   appended to `artifacts/progress.log`, which `run.sh` polls.
 - **Follow-ups.** One session is one LangGraph thread, so a follow-up prompt
   continues on the page the last turn left open.
-- **Model.** `kimi-k3` on DigitalOcean Inference, set by
+- **Model.** `anthropic-claude-sonnet-5.5` on DigitalOcean Inference, set by
   `HARNESS_INFERENCE_MODEL`, through `langchain-openai`, which the template
   ships. Set `OPENAI_API_KEY` (and optionally `MODEL`) instead to use OpenAI.
 
