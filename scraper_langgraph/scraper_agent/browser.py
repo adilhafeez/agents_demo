@@ -31,6 +31,9 @@ INSTALL_TIMEOUT_S = int(os.environ.get("BROWSER_INSTALL_TIMEOUT_SECONDS", "480")
 PAGE_TEXT_CHARS = int(os.environ.get("PAGE_TEXT_CHARS", "6000"))
 MAX_ELEMENTS = int(os.environ.get("PAGE_MAX_ELEMENTS", "80"))
 NAV_TIMEOUT_MS = 30_000
+# Most pages never reach network idle (analytics beacons), so this cap is paid
+# in full on nearly every navigation.
+SETTLE_MS = int(os.environ.get("PAGE_SETTLE_MS", "1500"))
 
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -262,7 +265,7 @@ class Browsers:
 async def settle(page: Page) -> None:
     """Give client-side rendering a moment after navigation, without hanging on chatty pages."""
     try:
-        await page.wait_for_load_state("networkidle", timeout=5_000)
+        await page.wait_for_load_state("networkidle", timeout=SETTLE_MS)
     except Exception:  # noqa: BLE001 - analytics beacons keep many pages from ever idling
         pass
 

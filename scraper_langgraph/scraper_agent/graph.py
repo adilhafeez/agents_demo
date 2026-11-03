@@ -16,6 +16,7 @@ must not use `from __future__ import annotations`.
 """
 
 import asyncio
+import difflib
 import functools
 import json
 import os
@@ -24,6 +25,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Literal
+from urllib.parse import urljoin, urlsplit
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -78,10 +80,21 @@ def _one_at_a_time(fn):
 @tool
 @_one_at_a_time
 async def open_url(url: str, config: RunnableConfig) -> str:
-    """Navigate to a URL and return the page: its interactive elements and visible text."""
-    if not re.match(r"^https?://", url):
-        url = "https://" + url
+    """Navigate to a URL and return the page: its interactive elements and visible text.
+
+    Use a URL the user gave or one copied exactly from a snapshot's `-> href`;
+    never build one from a title. To follow a link on the current page, click it.
+    """
     page = await browsers.page(_thread_id(config))
+    if url.startswith("/") and page.url.startswith("http"):
+        url = urljoin(page.url, url)
+    elif not re.match(r"^https?://", url):
+        url = "https://" + url
+    known = _seen_links[_thread_id(config)]
+    try:
+        known.update(await page.evaluate("() => [...document.querySelectorAll('a[href]')].map(a => a.href)"))
+    except PlaywrightError:
+        pass
     try:
         response = await page.goto(url, wait_until="domcontentloaded")
     except PlaywrightError as exc:
@@ -94,7 +107,24 @@ async def open_url(url: str, config: RunnableConfig) -> str:
         response = await page.goto(url, wait_until="domcontentloaded")
     await settle(page)
     status = f"HTTP {response.status}\n" if response is not None else ""
+    if response is not None and response.status == 404:
+        # The model tends to build a slug from a post's title instead of
+        # copying its link; the real link is usually on a page it already saw.
+        # Compare last path segments: whole URLs share a host and prefix that
+        # makes every link on the site look close.
+        by_slug = {_slug(href): href for href in known if _slug(href)}
+        close = [by_slug[s] for s in difflib.get_close_matches(_slug(url), by_slug, n=3, cutoff=0.6)]
+        if close:
+            status += "Not found. Closest links on pages you have seen: " + ", ".join(close) + "\n"
     return status + await snapshot(page)
+
+
+# Every link on every page each thread has left through open_url.
+_seen_links: defaultdict[str, set[str]] = defaultdict(set)
+
+
+def _slug(url: str) -> str:
+    return urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1]
 
 
 @tool
@@ -297,7 +327,8 @@ separate step writes the summary from the pages you visited.
 Rules:
 - Element numbers come from the most recent snapshot only. After any click,
   navigation or scroll, use the numbers from the new snapshot.
-- Prefer the site's own navigation over guessing URLs.
+- Never guess or construct a URL. Follow links by clicking them, or pass
+  open_url the exact `-> href` from the snapshot.
 - Stop as soon as you have enough. You have {remaining} of {max_steps} browser
   steps left this turn.
 - If a page blocks you (login wall, captcha, 403), say so and move on; do not
