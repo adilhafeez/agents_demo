@@ -78,7 +78,11 @@ def _one_at_a_time(fn):
 @tool
 @_one_at_a_time
 async def open_url(url: str, config: RunnableConfig) -> str:
-    """Navigate to a URL and return the page: its interactive elements and visible text."""
+    """Navigate to a URL and return the page: its interactive elements and visible text.
+
+    Use a URL the user gave or one copied exactly from a snapshot's `-> href`;
+    never build one from a title. To follow a link on the current page, click it.
+    """
     if not re.match(r"^https?://", url):
         url = "https://" + url
     page = await browsers.page(_thread_id(config))
@@ -297,7 +301,8 @@ separate step writes the summary from the pages you visited.
 Rules:
 - Element numbers come from the most recent snapshot only. After any click,
   navigation or scroll, use the numbers from the new snapshot.
-- Prefer the site's own navigation over guessing URLs.
+- Never guess or construct a URL. Follow links by clicking them, or pass
+  open_url the exact `-> href` from the snapshot.
 - Stop as soon as you have enough. You have {remaining} of {max_steps} browser
   steps left this turn.
 - If a page blocks you (login wall, captcha, 403), say so and move on; do not
