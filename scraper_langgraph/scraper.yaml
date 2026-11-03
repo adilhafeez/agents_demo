@@ -21,7 +21,7 @@ langgraph:
 env:
   # DigitalOcean Inference. The platform sets HARNESS_INFERENCE_BASE_URL itself;
   # the graph pairs it with HARNESS_INFERENCE_API_KEY below.
-  HARNESS_INFERENCE_MODEL: kimi-k3
+  HARNESS_INFERENCE_MODEL: anthropic-claude-sonnet-5.5
   # Browser actions per turn before the agent must summarize what it has.
   MAX_BROWSE_STEPS: "15"
   # Pause for approval before submitting any search or form.
