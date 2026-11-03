@@ -25,7 +25,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
@@ -85,9 +85,11 @@ async def open_url(url: str, config: RunnableConfig) -> str:
     Use a URL the user gave or one copied exactly from a snapshot's `-> href`;
     never build one from a title. To follow a link on the current page, click it.
     """
-    if not re.match(r"^https?://", url):
-        url = "https://" + url
     page = await browsers.page(_thread_id(config))
+    if url.startswith("/") and page.url.startswith("http"):
+        url = urljoin(page.url, url)
+    elif not re.match(r"^https?://", url):
+        url = "https://" + url
     known = _seen_links[_thread_id(config)]
     try:
         known.update(await page.evaluate("() => [...document.querySelectorAll('a[href]')].map(a => a.href)"))
